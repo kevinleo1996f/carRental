@@ -1,0 +1,33 @@
+erDiagram
+    CUSTOMERS ||--o{ BOOKINGS : places
+    CARS ||--o{ BOOKINGS : "is booked as"
+
+    CUSTOMERS {
+        int id PK
+        string full_name
+        string email UK
+        string password_hash
+        datetime created_at
+    }
+
+    CARS {
+        int id PK
+        string make
+        string model
+        string fuel_type
+        string transmission
+        int year
+        string drive
+        datetime created_at
+    }
+
+    BOOKINGS {
+        int id PK
+        int customer_id FK
+        int car_id FK
+        date start_date
+        date end_date
+        string status
+        datetime created_at
+        datetime updated_at
+    }

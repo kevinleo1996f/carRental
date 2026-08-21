@@ -1,0 +1,395 @@
+openapi: 3.0.3
+info:
+  title: Car Rental Booking API
+  version: 1.0.0
+  description: |
+    REST API for the car rental booking app.
+
+    Almost every endpoint is plain synchronous request/response. The one
+    exception is **POST /bookings** — it writes the booking as `pending`,
+    publishes an event to RabbitMQ, and returns `202 Accepted` immediately.
+    A human admin approves or rejects it later via the admin endpoints;
+    the customer finds out by polling `GET /bookings/{id}`.
+
+    Authentication is JWT (`Authorization: Bearer <token>`) for every route
+    except register/login. There is no separate admin table — the login
+    endpoint checks the submitted email against `ADMIN_EMAIL` in `.env`
+    first, and issues a token with `role: admin` if it matches.
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Registration and login. Admin logs in here too.
+  - name: Cars
+    description: Read-only access to the local car catalog (seeded from the Ninja API).
+  - name: Bookings
+    description: Customer-facing booking creation and status.
+  - name: Admin
+    description: Manual approve/reject of pending bookings, plus car catalog deletion. Requires an admin JWT.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new customer
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              full_name: Kevin Leo
+              email: kevin@example.com
+              password: hunter22
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in as a customer or as admin
+      description: |
+        If the email matches `ADMIN_EMAIL` from `.env`, this issues an
+        admin JWT without touching the database. Otherwise it checks the
+        `customers` table as normal.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: kevin@example.com
+              password: hunter22
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /cars:
+    get:
+      tags: [Cars]
+      summary: List available cars
+      description: Cars are seeded ahead of time from the Ninja API — this never calls out to api-ninjas.com live.
+      parameters:
+        - name: make
+          in: query
+          schema: { type: string }
+          example: kia
+        - name: model
+          in: query
+          schema: { type: string }
+        - name: year
+          in: query
+          schema: { type: integer }
+          example: 2021
+        - name: fuel_type
+          in: query
+          schema: { type: string, enum: [gas, diesel, electricity] }
+        - name: transmission
+          in: query
+          schema: { type: string, enum: [manual, automatic] }
+      responses:
+        '200':
+          description: Matching cars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Car'
+
+  /cars/{id}:
+    get:
+      tags: [Cars]
+      summary: Get one car by id
+      parameters:
+        - $ref: '#/components/parameters/CarId'
+      responses:
+        '200':
+          description: Car found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Car'
+        '404':
+          description: Car not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /bookings:
+    post:
+      tags: [Bookings]
+      summary: Create a booking (async confirmation)
+      description: |
+        Inserts the booking as `pending`, publishes `booking.created` to
+        RabbitMQ, and returns immediately. No approval decision is made
+        during this request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+            example:
+              car_id: 4
+              start_date: '2026-09-01'
+              end_date: '2026-09-05'
+      responses:
+        '202':
+          description: Booking accepted, pending manual review
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Booking'
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Confirmation will be sent within 24 hours.
+        '409':
+          description: Car is not available for the requested dates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [Bookings]
+      summary: List the logged-in customer's own bookings
+      responses:
+        '200':
+          description: Bookings belonging to the current customer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+
+  /bookings/{id}:
+    get:
+      tags: [Bookings]
+      summary: Get one booking's current status
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: Booking found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '404':
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/bookings/{id}/approve:
+    patch:
+      tags: [Admin]
+      summary: Approve a pending booking
+      description: Admin-only. Updates status to `confirmed` and publishes `booking.status_changed`.
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '403':
+          description: Caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Booking is not in a pending state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/bookings/{id}/reject:
+    patch:
+      tags: [Admin]
+      summary: Reject a pending booking
+      description: Admin-only. Updates status to `rejected` and publishes `booking.status_changed`.
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: Booking rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '403':
+          description: Caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Booking is not in a pending state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/cars/{id}:
+    delete:
+      tags: [Admin]
+      summary: Permanently delete a car
+      description: |
+        Admin-only. Hard delete — removes the row from `cars` entirely,
+        there is no soft-delete flag. Blocked if the car has any bookings,
+        so existing rental records are never silently orphaned or wiped.
+      parameters:
+        - $ref: '#/components/parameters/CarId'
+      responses:
+        '204':
+          description: Car deleted
+        '403':
+          description: Caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Car not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Car has existing bookings and cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CarId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+      example: 4
+    BookingId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+      example: 12
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [full_name, email, password]
+      properties:
+        full_name: { type: string, example: Kevin Leo }
+        email: { type: string, format: email, example: kevin@example.com }
+        password: { type: string, format: password, minLength: 8 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string, example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... }
+        role: { type: string, enum: [customer, admin] }
+
+    Customer:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        full_name: { type: string, example: Kevin Leo }
+        email: { type: string, format: email }
+        created_at: { type: string, format: date-time }
+
+    Car:
+      type: object
+      properties:
+        id: { type: integer, example: 4 }
+        make: { type: string, example: kia }
+        model: { type: string, example: seltos fwd }
+        fuel_type: { type: string, example: gas }
+        transmission: { type: string, example: a }
+        year: { type: integer, example: 2021 }
+        drive: { type: string, example: fwd }
+
+    BookingCreateRequest:
+      type: object
+      required: [car_id, start_date, end_date]
+      properties:
+        car_id: { type: integer, example: 4 }
+        start_date: { type: string, format: date, example: '2026-09-01' }
+        end_date: { type: string, format: date, example: '2026-09-05' }
+
+    Booking:
+      type: object
+      properties:
+        id: { type: integer, example: 12 }
+        customer_id: { type: integer, example: 1 }
+        car_id: { type: integer, example: 4 }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        status:
+          type: string
+          enum: [pending, confirmed, rejected]
+          example: pending
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Error:
+      type: object
+      properties:
+        message: { type: string, example: 'Invalid email or password.' }
