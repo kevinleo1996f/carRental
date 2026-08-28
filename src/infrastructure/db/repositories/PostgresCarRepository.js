@@ -1,6 +1,9 @@
 const pool = require('../pool');
 const Car = require('../../../domain/entities/Car');
 const CarRepository = require('../../../domain/repositories/CarRepository');
+const { ConflictError } = require('../../../domain/errors');
+
+const FOREIGN_KEY_VIOLATION = '23503';
 
 const FILTERABLE_COLUMNS = ['brand', 'model', 'year', 'fuel_type', 'transmission', 'drive'];
 
@@ -51,7 +54,14 @@ class PostgresCarRepository extends CarRepository {
   }
 
   async delete(id) {
-    await pool.query('DELETE FROM cars WHERE id = $1', [id]);
+    try {
+      await pool.query('DELETE FROM cars WHERE id = $1', [id]);
+    } catch (err) {
+      if (err.code === FOREIGN_KEY_VIOLATION) {
+        throw new ConflictError('Car has existing bookings and cannot be deleted.');
+      }
+      throw err;
+    }
   }
 }
 

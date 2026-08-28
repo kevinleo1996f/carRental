@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const authRoutes = require('./interfaces/http/routes/authRoutes');
+const carsRoutes = require('./interfaces/http/routes/carsRoutes');
+const adminRoutes = require('./interfaces/http/routes/adminRoutes');
 const notFoundHandler = require('./interfaces/http/middlewares/notFoundHandler');
 const errorHandler = require('./interfaces/http/middlewares/errorHandler');
 
@@ -14,6 +16,8 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/auth', authRoutes);
+app.use('/cars', carsRoutes);
+app.use('/admin', adminRoutes);
 
 // Reached only if nothing above matched -- turns Express's default
 // "Cannot GET /whatever" HTML page into the same JSON error shape as
