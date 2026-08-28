@@ -1,7 +1,7 @@
 class Car {
-  constructor({ id, make, model, fuelType, transmission, year, drive, createdAt }) {
+  constructor({ id, brand, model, fuelType, transmission, year, drive, createdAt }) {
     this.id = id;
-    this.make = make;
+    this.brand = brand;
     this.model = model;
     this.fuelType = fuelType;
     this.transmission = transmission;

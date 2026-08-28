@@ -50,18 +50,36 @@ background). The API and worker will start even with a placeholder
 
 Car data is **not** fetched live during a booking. It's pulled from the
 Ninja API once, ahead of time, into the local `cars` table — a booking
-only ever references an existing `cars` row by id. This keeps booking
-creation fast and avoids hitting Ninja's rate limits on every request.
+only ever references an existing `cars` row by id. This is also the
+project's backup against Ninja API downtime: once seeded, the whole app
+keeps working off the local database even if api-ninjas.com is
+unreachable — nothing at request time depends on it.
 
+The free Ninja API tier only ever returns **one** car per request (its
+`limit` parameter is premium-only), so the seed script loops over a curated
+list of brands for each model year and makes one request per combination.
 With the containers running, in a second terminal:
 
 ```bash
-docker compose exec api npm run seed -- --year=2021
+docker compose exec api npm run seed
 ```
 
-Run it again with a different `--year` (or `--make=`) to pull more cars.
-Each run just adds rows to `cars` — it won't create duplicates for a
-make/model/year that's already there.
+With no flags, this seeds model years **2021–2026** across 10 common
+brands (~60 requests). Pass `--year=2021` and/or `--brand=kia` to narrow
+it to one year and/or one brand instead. Each run only adds new rows —
+re-running it is safe and won't create duplicates for a
+brand/model/year/transmission/drive combination that's already there.
+
+If a request to Ninja fails partway through (bad key, rate limit, the
+service being down), the script logs a warning for that one year/brand
+and moves on — it never crashes and never touches rows it already saved,
+so a flaky connection just means a smaller catalog, not a broken seed.
+
+Two field conversions happen during seeding, not just a raw copy of
+Ninja's response: `make` becomes `brand`, and `transmission` is expanded
+from Ninja's single-letter code (`a`/`m`) to `automatic`/`manual`. `drive`
+(`fwd`/`awd`/`rwd`/`4wd`) and `fuel_type` are stored exactly as Ninja
+returns them.
 
 ## Admin login
 

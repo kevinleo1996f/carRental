@@ -101,7 +101,7 @@ paths:
       summary: List available cars
       description: Cars are seeded ahead of time from the Ninja API — this never calls out to api-ninjas.com live.
       parameters:
-        - name: make
+        - name: brand
           in: query
           schema: { type: string }
           example: kia
@@ -359,10 +359,10 @@ components:
       type: object
       properties:
         id: { type: integer, example: 4 }
-        make: { type: string, example: kia }
+        brand: { type: string, example: kia }
         model: { type: string, example: seltos fwd }
         fuel_type: { type: string, example: gas }
-        transmission: { type: string, example: a }
+        transmission: { type: string, example: automatic }
         year: { type: integer, example: 2021 }
         drive: { type: string, example: fwd }
 

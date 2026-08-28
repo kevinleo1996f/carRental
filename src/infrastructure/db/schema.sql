@@ -8,13 +8,14 @@ CREATE TABLE customers (
 
 CREATE TABLE cars (
     id SERIAL PRIMARY KEY,
-    make VARCHAR(100) NOT NULL,
+    brand VARCHAR(100) NOT NULL,
     model VARCHAR(100) NOT NULL,
     fuel_type VARCHAR(50),
     transmission VARCHAR(50),
     year INTEGER NOT NULL,
     drive VARCHAR(50),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (brand, model, year, transmission, drive)
 );
 
 CREATE TABLE bookings (
