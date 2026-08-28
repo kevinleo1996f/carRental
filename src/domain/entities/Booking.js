@@ -1,12 +1,14 @@
+const { ValidationError } = require('../errors');
+
 const VALID_STATUSES = ['pending', 'confirmed', 'rejected'];
 
 class Booking {
   constructor({ id, customerId, carId, startDate, endDate, status = 'pending', createdAt, updatedAt }) {
     if (new Date(endDate) < new Date(startDate)) {
-      throw new Error('end_date must not be before start_date');
+      throw new ValidationError('end_date must not be before start_date');
     }
     if (!VALID_STATUSES.includes(status)) {
-      throw new Error(`status must be one of: ${VALID_STATUSES.join(', ')}`);
+      throw new ValidationError(`status must be one of: ${VALID_STATUSES.join(', ')}`);
     }
 
     this.id = id;
