@@ -4,6 +4,9 @@ const VALID_STATUSES = ['pending', 'confirmed', 'rejected'];
 
 class Booking {
   constructor({ id, customerId, carId, startDate, endDate, status = 'pending', createdAt, updatedAt }) {
+    if (Number.isNaN(new Date(startDate).getTime()) || Number.isNaN(new Date(endDate).getTime())) {
+      throw new ValidationError('start_date and end_date must both be valid dates.');
+    }
     if (new Date(endDate) < new Date(startDate)) {
       throw new ValidationError('end_date must not be before start_date');
     }

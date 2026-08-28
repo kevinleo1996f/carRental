@@ -14,6 +14,10 @@ class BookingRepository {
   async updateStatus(id, status) {
     throw new Error('Not implemented');
   }
+
+  async hasOverlap(carId, startDate, endDate) {
+    throw new Error('Not implemented');
+  }
 }
 
 module.exports = BookingRepository;

@@ -22,6 +22,15 @@ describe('Booking entity', () => {
     })).toThrow('end_date must not be before start_date');
   });
 
+  it('rejects a garbage date string', () => {
+    expect(() => new Booking({
+      customerId: 1,
+      carId: 1,
+      startDate: 'not-a-date',
+      endDate: '2026-09-05',
+    })).toThrow('start_date and end_date must both be valid dates.');
+  });
+
   it('rejects an invalid status', () => {
     expect(() => new Booking({
       customerId: 1,

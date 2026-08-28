@@ -2,7 +2,7 @@ const ListCars = require('../../../application/use-cases/ListCars');
 const GetCarById = require('../../../application/use-cases/GetCarById');
 const DeleteCar = require('../../../application/use-cases/DeleteCar');
 const PostgresCarRepository = require('../../../infrastructure/db/repositories/PostgresCarRepository');
-const { ValidationError } = require('../../../domain/errors');
+const parseId = require('../utils/parseId');
 
 const carRepository = new PostgresCarRepository();
 const listCars = new ListCars({ carRepository });
@@ -19,17 +19,6 @@ function toResponse(car) {
     year: car.year,
     drive: car.drive,
   };
-}
-
-// req.params.id is always a string -- this turns it into a real number or
-// throws a clean 400, instead of letting a garbage id reach the database
-// and surface as a confusing raw error.
-function parseId(rawId) {
-  const id = Number(rawId);
-  if (!Number.isInteger(id)) {
-    throw new ValidationError('id must be an integer.');
-  }
-  return id;
 }
 
 async function list(req, res, next) {
