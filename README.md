@@ -101,9 +101,17 @@ env values — everyone else is a normal customer looked up in the
   haven't signed up for one yet. Only the seed script above uses a real
   key.
 
+The `api`/`worker` images deliberately don't include Jest or Supertest —
+they're dev-only tools, kept out of the image `docker compose up` actually
+runs. To run the suite, install them into a throwaway container run:
+
 ```bash
-docker compose exec api npm test
+docker compose run --rm api sh -c "npm install && npm test"
 ```
+
+If you have Node installed on your own machine, `npm install && npm test`
+directly on the host is faster for repeated runs while you're writing
+code — same test suite either way.
 
 ## Project layout
 
