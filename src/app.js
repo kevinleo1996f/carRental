@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./interfaces/http/swagger');
 const authRoutes = require('./interfaces/http/routes/authRoutes');
 const carsRoutes = require('./interfaces/http/routes/carsRoutes');
 const bookingsRoutes = require('./interfaces/http/routes/bookingsRoutes');
@@ -15,6 +17,11 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Publicly viewable -- no authMiddleware. Swagger UI's own "Authorize"
+// button is where a real JWT gets pasted in, for testing protected routes
+// from inside the docs page itself.
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use('/auth', authRoutes);
 app.use('/cars', carsRoutes);

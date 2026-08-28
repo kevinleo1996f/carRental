@@ -17,8 +17,11 @@ info:
     first, and issues a token with `role: admin` if it matches.
 
 servers:
-  - url: http://localhost:3000/api/v1
-    description: Local development
+  - url: http://localhost:3001
+    description: >-
+      Local development. Routes are mounted at the root, with no version
+      prefix. Update the port here if your docker-compose.yml maps the
+      api service's host port to something other than 3001.
 
 tags:
   - name: Auth
