@@ -238,6 +238,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '404':
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '409':
           description: Booking is not in a pending state
           content:
@@ -261,6 +267,12 @@ paths:
                 $ref: '#/components/schemas/Booking'
         '403':
           description: Caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Booking not found
           content:
             application/json:
               schema:

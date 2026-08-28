@@ -1,6 +1,7 @@
 const CreateBooking = require('../../../application/use-cases/CreateBooking');
 const GetBookingById = require('../../../application/use-cases/GetBookingById');
 const ListBookingsForCustomer = require('../../../application/use-cases/ListBookingsForCustomer');
+const UpdateBookingStatus = require('../../../application/use-cases/UpdateBookingStatus');
 const PostgresBookingRepository = require('../../../infrastructure/db/repositories/PostgresBookingRepository');
 const PostgresCarRepository = require('../../../infrastructure/db/repositories/PostgresCarRepository');
 const eventPublisher = require('../../../infrastructure/messaging/publisher');
@@ -12,6 +13,7 @@ const carRepository = new PostgresCarRepository();
 const createBooking = new CreateBooking({ bookingRepository, carRepository, eventPublisher });
 const getBookingById = new GetBookingById({ bookingRepository });
 const listBookingsForCustomer = new ListBookingsForCustomer({ bookingRepository });
+const updateBookingStatus = new UpdateBookingStatus({ bookingRepository, eventPublisher });
 
 function toResponse(booking) {
   return {
@@ -67,4 +69,22 @@ async function listMine(req, res, next) {
   }
 }
 
-module.exports = { create, getById, listMine };
+async function approve(req, res, next) {
+  try {
+    const booking = await updateBookingStatus.execute(parseId(req.params.id), 'confirmed');
+    res.status(200).json(toResponse(booking));
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function reject(req, res, next) {
+  try {
+    const booking = await updateBookingStatus.execute(parseId(req.params.id), 'rejected');
+    res.status(200).json(toResponse(booking));
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { create, getById, listMine, approve, reject };
