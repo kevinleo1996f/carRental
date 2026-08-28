@@ -37,14 +37,22 @@ Then:
 docker compose up --build
 ```
 
-This starts 4 containers: `postgres`, `rabbitmq`, `api` (port `3000`), and
-`worker` (no exposed port — it just consumes RabbitMQ messages in the
-background). The API and worker will start even with a placeholder
-`NINJA_API_KEY` — that key is only read by the seed script below.
+This starts 4 containers: `postgres`, `rabbitmq`, `api` (port `3001` on
+your machine — see note below), and `worker` (no exposed port — it just
+consumes RabbitMQ messages in the background). The API and worker will
+start even with a placeholder `NINJA_API_KEY` — that key is only read by
+the seed script below.
 
-- API: http://localhost:3000
-- Swagger docs: http://localhost:3000/api-docs
+- API: http://localhost:3001
+- Swagger docs: http://localhost:3001/api-docs
 - RabbitMQ management UI: http://localhost:15672 (guest / guest)
+
+The API is deliberately mapped to host port `3001`, not the more obvious
+`3000` — port `3000` is a very common default for other local dev servers
+(Next.js, Create React App, etc.), so mapping to `3001` avoids a collision
+if you happen to have another project running. Inside Docker's internal
+network the container still listens on `3000`; only the port your browser
+or Postman uses to reach it is different.
 
 ## Seeding the car catalog
 
