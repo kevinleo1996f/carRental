@@ -1,5 +1,38 @@
-console.log('Worker process started. RabbitMQ consumer wiring is added in a later step.');
+const { getConnection } = require('./infrastructure/messaging/connection');
 
-// Nothing is scheduling any work yet, so without this the process would run
-// to completion and exit immediately, and Docker would keep restarting it.
-setInterval(() => {}, 1000 * 60 * 60);
+const QUEUES = ['booking.created', 'booking.status_changed'];
+
+function handleBookingCreated(event) {
+  console.log(`[booking.created] booking ${event.bookingId} is pending -- notifying admin to review.`);
+}
+
+function handleBookingStatusChanged(event) {
+  console.log(`[booking.status_changed] booking ${event.bookingId} is now "${event.status}" -- notifying customer.`);
+}
+
+const HANDLERS = {
+  'booking.created': handleBookingCreated,
+  'booking.status_changed': handleBookingStatusChanged,
+};
+
+async function start() {
+  const connection = await getConnection();
+  const channel = await connection.createChannel();
+
+  for (const queue of QUEUES) {
+    await channel.assertQueue(queue, { durable: true });
+    channel.consume(queue, (msg) => {
+      if (!msg) return;
+      const event = JSON.parse(msg.content.toString());
+      HANDLERS[queue](event);
+      channel.ack(msg);
+    });
+  }
+
+  console.log('Worker connected to RabbitMQ. Listening on:', QUEUES.join(', '));
+}
+
+start().catch((err) => {
+  console.error('Worker failed to start:', err);
+  process.exit(1);
+});

@@ -3,12 +3,13 @@ const GetBookingById = require('../../../application/use-cases/GetBookingById');
 const ListBookingsForCustomer = require('../../../application/use-cases/ListBookingsForCustomer');
 const PostgresBookingRepository = require('../../../infrastructure/db/repositories/PostgresBookingRepository');
 const PostgresCarRepository = require('../../../infrastructure/db/repositories/PostgresCarRepository');
+const eventPublisher = require('../../../infrastructure/messaging/publisher');
 const parseId = require('../utils/parseId');
 const { ValidationError } = require('../../../domain/errors');
 
 const bookingRepository = new PostgresBookingRepository();
 const carRepository = new PostgresCarRepository();
-const createBooking = new CreateBooking({ bookingRepository, carRepository });
+const createBooking = new CreateBooking({ bookingRepository, carRepository, eventPublisher });
 const getBookingById = new GetBookingById({ bookingRepository });
 const listBookingsForCustomer = new ListBookingsForCustomer({ bookingRepository });
 
