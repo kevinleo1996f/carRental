@@ -8,7 +8,7 @@
     "dev": "node --watch src/server.js",
     "worker": "node src/worker.js",
     "seed": "node src/scripts/seedCars.js",
-    "test": "jest"
+    "test": "DB_NAME=carrental_test jest --runInBand"
   },
   "keywords": [],
   "author": "",

@@ -100,14 +100,34 @@ env values — everyone else is a normal customer looked up in the
 ## Testing
 
 - **Jest** runs unit tests against the domain/application layer (business
-  rules, use cases) with no database or network involved.
-- **Supertest** drives the Express app in-process for integration tests —
-  e.g. `POST /bookings` really hits a (test) Postgres database and asserts
-  on the real HTTP response, no server needs to be manually started.
-- The Ninja API client is always mocked in tests (`jest.mock(...)`) —
-  **no `NINJA_API_KEY` is required to run the test suite**, even if you
-  haven't signed up for one yet. Only the seed script above uses a real
-  key.
+  rules, use cases) against fake repositories — no database or network
+  involved, and these prove the business rules themselves (overlapping
+  bookings, IDOR protection, etc.).
+- **Supertest** drives the real Express app in-process for integration
+  tests under `tests/integration/` — `POST /bookings`, `POST /auth/login`,
+  etc. really hit Postgres and assert on the real HTTP response. These
+  prove the wiring (routes → controllers → database) works, not the
+  business rules a second time.
+- Integration tests run against a separate **`carrental_test`** database
+  on the same Postgres container — never your real `carrental` data.
+  It's created automatically alongside `carrental` the first time the
+  Postgres container starts against a fresh volume (see
+  `create-test-db.sh`), reusing `schema.sql` so there's only one source
+  of truth for the schema. Each test file truncates it before every test
+  (`tests/integration/helpers/db.js`).
+- `npm test` runs as `DB_NAME=carrental_test jest --runInBand` — the env
+  var points the suite at the test database, and `--runInBand` runs test
+  files one at a time rather than in parallel workers, since they share
+  that one real database and would otherwise interfere with each other.
+- The Ninja API client is mocked in the search integration test and in
+  the `SearchCar` unit tests (`jest.mock(...)`) — **no `NINJA_API_KEY` is
+  required to run the test suite**, even if you haven't signed up for
+  one yet. Only the seed script above and manually testing `/cars/search`
+  yourself use a real key.
+- RabbitMQ doesn't need to be reachable for tests to pass either — booking
+  creation and admin approve/reject both swallow a failed publish (see
+  `CreateBooking`/`UpdateBookingStatus`), so the same resilience that
+  protects production also means the test suite doesn't depend on it.
 
 The `api`/`worker` images deliberately don't include Jest or Supertest —
 they're dev-only tools, kept out of the image `docker compose up` actually

@@ -12,4 +12,12 @@ function getConnection() {
   return connectionPromise;
 }
 
-module.exports = { getConnection };
+async function closeConnection() {
+  if (connectionPromise) {
+    const connection = await connectionPromise;
+    connectionPromise = null;
+    await connection.close();
+  }
+}
+
+module.exports = { getConnection, closeConnection };
