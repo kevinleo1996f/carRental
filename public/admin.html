@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Car Rental — Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>Car Rental — Admin</h1>
+    <span id="who"></span>
+    <button class="secondary" onclick="logout()">Log out</button>
+  </div>
+
+  <h2>Bookings <span class="muted">(auto-refreshes every 4s)</span></h2>
+  <form id="filter-form">
+    <select id="status-filter">
+      <option value="">All statuses</option>
+      <option value="pending">Pending</option>
+      <option value="confirmed">Confirmed</option>
+      <option value="rejected">Rejected</option>
+    </select>
+  </form>
+  <div id="bookings-table"></div>
+
+  <script src="/api.js"></script>
+  <script>
+    requireRole('admin');
+    document.getElementById('who').textContent = 'Logged in as admin';
+
+    function statusBadge(status) {
+      return `<span class="badge ${status}">${status}</span>`;
+    }
+
+    async function act(id, action) {
+      try {
+        await apiFetch(`/admin/bookings/${id}/${action}`, { method: 'PATCH' });
+        loadBookings();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function loadBookings() {
+      const tableEl = document.getElementById('bookings-table');
+      const status = document.getElementById('status-filter').value;
+      const query = status ? `?status=${status}` : '';
+      try {
+        const bookings = await apiFetch(`/admin/bookings${query}`);
+        tableEl.innerHTML = bookings.length
+          ? `<table>
+              <tr><th>Id</th><th>Customer</th><th>Car</th><th>Start</th><th>End</th><th>Status</th><th>Actions</th></tr>
+              ${bookings.map((b) => `
+                <tr>
+                  <td>${b.id}</td>
+                  <td>#${b.customer_id}</td>
+                  <td>#${b.car_id}</td>
+                  <td>${b.start_date.slice(0, 10)}</td>
+                  <td>${b.end_date.slice(0, 10)}</td>
+                  <td>${statusBadge(b.status)}</td>
+                  <td>${b.status === 'pending'
+                    ? `<button onclick="act(${b.id}, 'approve')">Approve</button><button class="danger" onclick="act(${b.id}, 'reject')">Reject</button>`
+                    : '<span class="muted">—</span>'}</td>
+                </tr>`).join('')}
+            </table>`
+          : '<p class="muted">No bookings found.</p>';
+      } catch (err) {
+        tableEl.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    }
+
+    document.getElementById('status-filter').addEventListener('change', loadBookings);
+    loadBookings();
+    setInterval(loadBookings, 4000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Car Rental — Login</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <h1>Car Rental</h1>
+  <p class="muted">Log in as a customer or admin — one form, same as the real API: it's based on which email you use.</p>
+
+  <h2>Log in</h2>
+  <form id="login-form">
+    <input type="email" id="login-email" placeholder="Email" required>
+    <input type="password" id="login-password" placeholder="Password" required>
+    <button type="submit">Log in</button>
+  </form>
+  <div id="login-message"></div>
+
+  <h2>New customer? Register</h2>
+  <form id="register-form">
+    <input type="text" id="register-name" placeholder="Full name" required>
+    <input type="email" id="register-email" placeholder="Email" required>
+    <input type="password" id="register-password" placeholder="Password" required>
+    <button type="submit" class="secondary">Register</button>
+  </form>
+  <div id="register-message"></div>
+
+  <script src="/api.js"></script>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const messageEl = document.getElementById('login-message');
+      messageEl.textContent = '';
+      messageEl.className = '';
+      try {
+        const { token, role } = await apiFetch('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        saveSession({ token, role, email });
+        window.location.href = role === 'admin' ? '/admin.html' : '/index.html';
+      } catch (err) {
+        messageEl.textContent = err.message;
+        messageEl.className = 'error';
+      }
+    });
+
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const full_name = document.getElementById('register-name').value;
+      const email = document.getElementById('register-email').value;
+      const password = document.getElementById('register-password').value;
+      const messageEl = document.getElementById('register-message');
+      messageEl.textContent = '';
+      messageEl.className = '';
+      try {
+        await apiFetch('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ full_name, email, password }),
+        });
+        messageEl.textContent = 'Registered! You can log in now.';
+        messageEl.className = 'success';
+        document.getElementById('login-email').value = email;
+      } catch (err) {
+        messageEl.textContent = err.message;
+        messageEl.className = 'error';
+      }
+    });
+  </script>
+</body>
+</html>

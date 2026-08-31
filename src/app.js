@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./interfaces/http/swagger');
@@ -13,6 +14,11 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// The 3-page test UI (login/index/admin.html) -- registered before the API
+// routes so an exact static file match always wins; anything that isn't a
+// real file (e.g. /auth/login) falls through to the routes below unchanged.
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

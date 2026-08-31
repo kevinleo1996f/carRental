@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Car Rental — Customer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>Car Rental — Customer</h1>
+    <span id="who"></span>
+    <button class="secondary" onclick="logout()">Log out</button>
+  </div>
+
+  <h2>Search a car (live via Ninja API, falls back to the local cache)</h2>
+  <form id="search-form">
+    <input type="text" id="search-brand" placeholder="Brand (e.g. kia)" required>
+    <input type="number" id="search-year" placeholder="Year (e.g. 2021)" required>
+    <button type="submit">Search</button>
+  </form>
+  <div id="search-result"></div>
+
+  <h2>Browse the cached catalog</h2>
+  <button class="secondary" onclick="loadAllCars()">Load all cars</button>
+  <div id="cars-table"></div>
+
+  <h2>Book a car</h2>
+  <form id="book-form">
+    <input type="number" id="book-car-id" placeholder="Car id" required>
+    <input type="date" id="book-start" required>
+    <input type="date" id="book-end" required>
+    <button type="submit">Book</button>
+  </form>
+  <div id="book-message"></div>
+
+  <h2>My bookings <span class="muted">(auto-refreshes every 4s — leave this open while admin acts in the other tab)</span></h2>
+  <div id="bookings-table"></div>
+
+  <script src="/api.js"></script>
+  <script>
+    requireRole('customer');
+    document.getElementById('who').textContent = `Logged in as ${getEmail() || 'customer'}`;
+
+    function statusBadge(status) {
+      return `<span class="badge ${status}">${status}</span>`;
+    }
+
+    document.getElementById('search-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const brand = document.getElementById('search-brand').value;
+      const year = document.getElementById('search-year').value;
+      const resultEl = document.getElementById('search-result');
+      resultEl.innerHTML = 'Searching...';
+      try {
+        const { source, car } = await apiFetch(`/cars/search?brand=${encodeURIComponent(brand)}&year=${encodeURIComponent(year)}`);
+        resultEl.innerHTML = `
+          <div class="card">
+            <span class="badge ${source}">${source}</span>
+            <p><strong>#${car.id}</strong> — ${car.year} ${car.brand} ${car.model} &middot; ${car.transmission} &middot; ${car.drive} &middot; ${car.fuel_type}</p>
+          </div>`;
+      } catch (err) {
+        resultEl.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    });
+
+    async function loadAllCars() {
+      const tableEl = document.getElementById('cars-table');
+      tableEl.innerHTML = 'Loading...';
+      try {
+        const cars = await apiFetch('/cars');
+        tableEl.innerHTML = `
+          <table>
+            <tr><th>Id</th><th>Brand</th><th>Model</th><th>Year</th><th>Transmission</th><th>Drive</th></tr>
+            ${cars.map((c) => `<tr><td>${c.id}</td><td>${c.brand}</td><td>${c.model}</td><td>${c.year}</td><td>${c.transmission}</td><td>${c.drive}</td></tr>`).join('')}
+          </table>`;
+      } catch (err) {
+        tableEl.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    }
+
+    document.getElementById('book-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const car_id = document.getElementById('book-car-id').value;
+      const start_date = document.getElementById('book-start').value;
+      const end_date = document.getElementById('book-end').value;
+      const messageEl = document.getElementById('book-message');
+      messageEl.textContent = '';
+      messageEl.className = '';
+      try {
+        const booking = await apiFetch('/bookings', {
+          method: 'POST',
+          body: JSON.stringify({ car_id: Number(car_id), start_date, end_date }),
+        });
+        messageEl.textContent = `Booking #${booking.id} created — ${booking.message}`;
+        messageEl.className = 'success';
+        loadMyBookings();
+      } catch (err) {
+        messageEl.textContent = err.message;
+        messageEl.className = 'error';
+      }
+    });
+
+    async function loadMyBookings() {
+      const tableEl = document.getElementById('bookings-table');
+      try {
+        const bookings = await apiFetch('/bookings');
+        tableEl.innerHTML = bookings.length
+          ? `<table>
+              <tr><th>Id</th><th>Car id</th><th>Start</th><th>End</th><th>Status</th><th>Updated</th></tr>
+              ${bookings.map((b) => `<tr><td>${b.id}</td><td>${b.car_id}</td><td>${b.start_date.slice(0, 10)}</td><td>${b.end_date.slice(0, 10)}</td><td>${statusBadge(b.status)}</td><td>${new Date(b.updated_at).toLocaleTimeString()}</td></tr>`).join('')}
+            </table>`
+          : '<p class="muted">No bookings yet.</p>';
+      } catch (err) {
+        tableEl.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    }
+
+    loadMyBookings();
+    setInterval(loadMyBookings, 4000);
+  </script>
+</body>
+</html>
