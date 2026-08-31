@@ -44,6 +44,7 @@ start even with a placeholder `NINJA_API_KEY` — that key is only read by
 the seed script below.
 
 - API: http://localhost:3001
+- Test UI (customer login/homepage): http://localhost:3001/login.html
 - Swagger docs: http://localhost:3001/api-docs
 - RabbitMQ management UI: http://localhost:15672 (guest / guest)
 
@@ -96,6 +97,30 @@ with the email/password from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in your
 `.env` issues a JWT with `role: admin`, checked directly against those
 env values — everyone else is a normal customer looked up in the
 `customers` table. See `POST /auth/login` in the Swagger docs.
+
+## Test UI
+
+A small 3-page frontend (plain HTML/JS, no build step) at `public/`,
+mainly so demoing the app doesn't mean juggling Postman tabs. One login
+form works for both roles — same as the real API — and redirects based
+on the `role` the login response returns:
+
+- `login.html` — log in or register.
+- `index.html` — customer homepage: search a car live (shows whether the
+  result came from Ninja or the database fallback), browse the cached
+  catalog, book a car, and a "My bookings" table that polls every 4s.
+- `admin.html` — every booking, with Approve/Reject on the pending ones.
+
+**To see the async flow live**, open two separate browser windows (not
+two tabs in the same window — `localStorage` is shared across tabs in
+one browser, so a second login there would overwrite the first). Log in
+as a customer in one, admin in the other, book a car, then approve it
+in the admin window — the customer window's "My bookings" table flips
+to `confirmed` on its own within a few seconds, no refresh. For the full
+picture including the actual message broker traffic (not just its
+downstream effect), keep a third tab on the
+[RabbitMQ management UI](http://localhost:15672) queues view alongside
+the two app windows.
 
 ## Testing
 
