@@ -1,6 +1,7 @@
 const CreateBooking = require('../../../application/use-cases/CreateBooking');
 const GetBookingById = require('../../../application/use-cases/GetBookingById');
 const ListBookingsForCustomer = require('../../../application/use-cases/ListBookingsForCustomer');
+const ListAllBookings = require('../../../application/use-cases/ListAllBookings');
 const UpdateBookingStatus = require('../../../application/use-cases/UpdateBookingStatus');
 const PostgresBookingRepository = require('../../../infrastructure/db/repositories/PostgresBookingRepository');
 const PostgresCarRepository = require('../../../infrastructure/db/repositories/PostgresCarRepository');
@@ -13,6 +14,7 @@ const carRepository = new PostgresCarRepository();
 const createBooking = new CreateBooking({ bookingRepository, carRepository, eventPublisher });
 const getBookingById = new GetBookingById({ bookingRepository });
 const listBookingsForCustomer = new ListBookingsForCustomer({ bookingRepository });
+const listAllBookings = new ListAllBookings({ bookingRepository });
 const updateBookingStatus = new UpdateBookingStatus({ bookingRepository, eventPublisher });
 
 function toResponse(booking) {
@@ -69,6 +71,16 @@ async function listMine(req, res, next) {
   }
 }
 
+async function listAll(req, res, next) {
+  try {
+    const { status } = req.query;
+    const bookings = await listAllBookings.execute(status ? { status } : {});
+    res.status(200).json(bookings.map(toResponse));
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function approve(req, res, next) {
   try {
     const booking = await updateBookingStatus.execute(parseId(req.params.id), 'confirmed');
@@ -87,4 +99,4 @@ async function reject(req, res, next) {
   }
 }
 
-module.exports = { create, getById, listMine, approve, reject };
+module.exports = { create, getById, listMine, listAll, approve, reject };

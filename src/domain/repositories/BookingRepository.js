@@ -18,6 +18,10 @@ class BookingRepository {
   async hasOverlap(carId, startDate, endDate) {
     throw new Error('Not implemented');
   }
+
+  async findAll(filters) {
+    throw new Error('Not implemented');
+  }
 }
 
 module.exports = BookingRepository;

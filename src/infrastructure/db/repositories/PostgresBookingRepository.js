@@ -47,6 +47,18 @@ class PostgresBookingRepository extends BookingRepository {
     return result.rows[0] ? toEntity(result.rows[0]) : null;
   }
 
+  async findAll(filters = {}) {
+    const clauses = [];
+    const values = [];
+    if (filters.status) {
+      values.push(filters.status);
+      clauses.push(`status = $${values.length}`);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const result = await pool.query(`SELECT * FROM bookings ${where} ORDER BY id`, values);
+    return result.rows.map(toEntity);
+  }
+
   // Two date ranges overlap when each one starts before the other ends.
   // pending/confirmed both block the dates; a rejected booking doesn't.
   async hasOverlap(carId, startDate, endDate) {
