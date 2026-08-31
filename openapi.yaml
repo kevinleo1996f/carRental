@@ -131,6 +131,59 @@ paths:
                 items:
                   $ref: '#/components/schemas/Car'
 
+  /cars/search:
+    get:
+      tags: [Cars]
+      summary: Search for one car, live from the Ninja API, with a database fallback
+      description: |
+        Unlike `GET /cars`, this calls api-ninjas.com live. The free Ninja
+        tier only ever returns one car per request, so this always returns
+        at most one — there is no way to page or bulk-search live.
+
+        If the live call succeeds, the result is upserted into the local
+        `cars` table and returned with `source: ninja_api`. If it fails
+        for any reason (bad key, network error, Ninja down) — or succeeds
+        but has no match for this brand/year — the local `cars` table is
+        queried instead, and the response comes back with
+        `source: database_fallback`. Only if neither has a match does
+        this return `404`.
+      parameters:
+        - name: brand
+          in: query
+          required: true
+          schema: { type: string }
+          example: kia
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+          example: 2021
+      responses:
+        '200':
+          description: A car was found, from either source
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  source:
+                    type: string
+                    enum: [ninja_api, database_fallback]
+                  car:
+                    $ref: '#/components/schemas/Car'
+        '400':
+          description: brand and/or year missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No matching car from either the live API or the local database
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /cars/{id}:
     get:
       tags: [Cars]

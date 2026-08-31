@@ -1,13 +1,17 @@
 const ListCars = require('../../../application/use-cases/ListCars');
 const GetCarById = require('../../../application/use-cases/GetCarById');
 const DeleteCar = require('../../../application/use-cases/DeleteCar');
+const SearchCar = require('../../../application/use-cases/SearchCar');
 const PostgresCarRepository = require('../../../infrastructure/db/repositories/PostgresCarRepository');
+const ninjaApiClient = require('../../../infrastructure/external/ninjaApiClient');
 const parseId = require('../utils/parseId');
+const { ValidationError } = require('../../../domain/errors');
 
 const carRepository = new PostgresCarRepository();
 const listCars = new ListCars({ carRepository });
 const getCarById = new GetCarById({ carRepository });
 const deleteCar = new DeleteCar({ carRepository });
+const searchCar = new SearchCar({ ninjaApiClient, carRepository });
 
 function toResponse(car) {
   return {
@@ -39,6 +43,20 @@ async function list(req, res, next) {
   }
 }
 
+async function search(req, res, next) {
+  try {
+    const { brand, year: rawYear } = req.query;
+    if (!brand || !rawYear) {
+      throw new ValidationError('brand and year are both required to search.');
+    }
+
+    const { car, source } = await searchCar.execute({ brand, year: parseId(rawYear, 'year') });
+    res.status(200).json({ source, car: toResponse(car) });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function getById(req, res, next) {
   try {
     const car = await getCarById.execute(parseId(req.params.id));
@@ -57,4 +75,4 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { list, getById, remove };
+module.exports = { list, search, getById, remove };

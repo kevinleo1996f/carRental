@@ -53,6 +53,21 @@ class PostgresCarRepository extends CarRepository {
     return result.rows[0] ? toEntity(result.rows[0]) : null;
   }
 
+  // Unlike create(), this always returns the row -- new or already there.
+  // "DO UPDATE SET brand = EXCLUDED.brand" is a harmless no-op write, used
+  // only so ON CONFLICT still lets RETURNING hand back the existing row.
+  async upsert({ brand, model, fuelType, transmission, year, drive }) {
+    const result = await pool.query(
+      `INSERT INTO cars (brand, model, fuel_type, transmission, year, drive)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (brand, model, year, transmission, drive)
+       DO UPDATE SET brand = EXCLUDED.brand
+       RETURNING *`,
+      [brand, model, fuelType, transmission, year, drive]
+    );
+    return toEntity(result.rows[0]);
+  }
+
   async delete(id) {
     try {
       await pool.query('DELETE FROM cars WHERE id = $1', [id]);

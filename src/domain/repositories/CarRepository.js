@@ -14,6 +14,10 @@ class CarRepository {
   async delete(id) {
     throw new Error('Not implemented');
   }
+
+  async upsert(car) {
+    throw new Error('Not implemented');
+  }
 }
 
 module.exports = CarRepository;
