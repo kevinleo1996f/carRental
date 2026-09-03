@@ -1,4 +1,4 @@
-# Car Rental Booking API
+ # Car Rental Booking API
 
 A car rental booking backend: Node.js + Express, PostgreSQL, JWT auth, and
 RabbitMQ for the one async step in the app (booking confirmation). See
@@ -111,16 +111,50 @@ on the `role` the login response returns:
   catalog, book a car, and a "My bookings" table that polls every 4s.
 - `admin.html` — every booking, with Approve/Reject on the pending ones.
 
-**To see the async flow live**, open two separate browser windows (not
-two tabs in the same window — `localStorage` is shared across tabs in
-one browser, so a second login there would overwrite the first). Log in
-as a customer in one, admin in the other, book a car, then approve it
-in the admin window — the customer window's "My bookings" table flips
-to `confirmed` on its own within a few seconds, no refresh. For the full
-picture including the actual message broker traffic (not just its
-downstream effect), keep a third tab on the
-[RabbitMQ management UI](http://localhost:15672) queues view alongside
-the two app windows.
+### Demoing the async booking flow
+
+This is the actual point of the whole project — a customer's booking
+gets an instant response while a human reviews it independently, and
+RabbitMQ is what carries that handoff. Follow these steps in order:
+
+1. **Window 1 (customer)** — open `http://localhost:3001/login.html`,
+   register a new account (or use one you already made), then log in.
+   You land on `index.html`.
+2. **Window 2 (admin)** — open `http://localhost:3001/login.html` in a
+   genuinely *different* browser, or a private/incognito window (not a
+   second tab in the same window/profile — `localStorage`, where the
+   login token lives, is shared across tabs in one browser, and a second
+   login there would silently overwrite the first session). Log in with
+   the `ADMIN_EMAIL` / `ADMIN_PASSWORD` from your `.env`. You land on
+   `admin.html`.
+3. In a terminal, start and leave running:
+   ```bash
+   docker compose logs worker -f
+   ```
+   This is the actual proof that RabbitMQ is doing the work — every
+   booking created or approved/rejected produces a timestamped line here
+   the instant it happens, independent of what either browser is doing.
+4. In Window 1, search a car (e.g. brand `kia`, year `2021`) and book
+   it. A `[booking.created] booking N is pending...` line appears in the
+   terminal immediately.
+5. In Window 2, find that booking and click **Approve**. A
+   `[booking.status_changed] booking N is now "confirmed"...` line
+   appears in the terminal immediately.
+6. Switch back to Window 1 and don't touch anything — within about 4
+   seconds, the "My bookings" table updates itself from `pending` to
+   `confirmed` on its own. The customer never has to know or care when
+   the queue actually delivered the message; they just see the outcome.
+
+**A note on the RabbitMQ management UI** (`http://localhost:15672`,
+guest/guest) — it's useful for confirming the `booking.created` /
+`booking.status_changed` queues exist, but its "Ready"/"Unacked" counts
+and rate graphs only reflect the last second or two of activity. Since
+the worker consumes a message almost instantly, loading or refreshing
+that page even a few seconds after clicking "Book" will correctly show
+all zeros — the message already arrived and was cleared — which can
+look like nothing happened even though it did. **The worker log from
+step 3 is the reliable record; the RabbitMQ UI is a supplementary view,
+not the proof.**
 
 ## Testing
 
