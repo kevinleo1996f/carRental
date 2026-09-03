@@ -158,46 +158,58 @@ not the proof.**
 
 ### Proving CORS is actually working
 
+The API only allows one specific browser origin — `CORS_ORIGIN` in
+`.env`, `http://localhost:3002` by default — not `*` (any origin).
+Requests with no `Origin` header at all (curl, Postman) are unaffected
+either way, since CORS is purely a browser mechanism.
+
 The pages above are served by the same Express app as the API, so
 they're same-origin — the browser never applies CORS to a same-origin
 request, meaning using them normally proves nothing about CORS
-specifically, even though everything works. To actually exercise it,
-serve the same pages from a genuinely different origin (a different
-port counts) and watch a cross-origin request succeed:
+specifically, even though everything works. Proving it means serving
+the same pages from a real, different origin and showing **both** the
+allowed case and the blocked case — a wildcard would only ever show
+"it lets everyone in," which isn't actually a demonstration of
+restriction.
 
 ```bash
-npm run demo:cors
+npm run demo:cors:allowed   # serves public/ on :3002 — the allowed origin
+npm run demo:cors:blocked   # serves public/ on :8080 — a different, disallowed origin
 ```
 
-This runs on your host machine (not in Docker) and serves `public/` on
-`http://localhost:8080`, while your API keeps running on `3001` as
-usual — two different origins. Open:
+Both run on your host machine (not in Docker); your API keeps running
+on `3001` as usual.
 
-```
-http://localhost:8080/login.html?apiBase=http://localhost:3001
-```
-
-Log in or register as normal. Every API call now targets
-`http://localhost:3001` instead of the page's own origin (`8080`) —
-that mismatch is exactly what makes this a real CORS scenario. You only
+**Allowed:** open `http://localhost:3002/login.html?apiBase=http://localhost:3001`
+and log in normally — it works exactly like same-origin use. You only
 need to type `?apiBase=...` once; it's remembered in `sessionStorage`
 and survives the redirect to `index.html` / `admin.html`.
 
-**To watch it happen**: open DevTools → Network tab before logging in.
-Requests to `localhost:3001` will succeed despite coming from a
-different origin; click into a response and look for the
-`Access-Control-Allow-Origin: *` header — that header *is* CORS, and
-its presence (plus the request not being blocked) is the proof.
-
-**Or skip the browser entirely:**
-```bash
-curl -i -X OPTIONS http://localhost:3001/cars \
-  -H "Origin: http://some-other-site.example" \
-  -H "Access-Control-Request-Method: GET"
+**Blocked:** open `http://localhost:8080/login.html?apiBase=http://localhost:3001`
+instead and try to log in — it fails. Open DevTools → Console first and
+you'll see Chrome's own message:
 ```
-A `204` with `Access-Control-Allow-Origin: *` in the response proves the
-server answers a preflight from *any* origin — including one that was
-never `localhost:8080` at all — with nothing else running.
+Access to fetch at 'http://localhost:3001/auth/login' from origin
+'http://localhost:8080' has been blocked by CORS policy: Response to
+preflight request doesn't pass access control check: No
+'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+That's the browser itself refusing to let the page read the response —
+this is the actual mechanism, not a simulation of it.
+
+**Or skip the browser entirely, and see the same contrast via curl:**
+```bash
+# allowed origin -> 204 with a specific Access-Control-Allow-Origin
+curl -i -X OPTIONS http://localhost:3001/cars \
+  -H "Origin: http://localhost:3002" -H "Access-Control-Request-Method: GET"
+
+# any other origin -> rejected, no Access-Control-Allow-Origin header at all
+curl -i -X OPTIONS http://localhost:3001/cars \
+  -H "Origin: http://localhost:8080" -H "Access-Control-Request-Method: GET"
+
+# no Origin header at all (how curl/Postman normally behave) -> still works fine
+curl -i http://localhost:3001/health
+```
 
 ## Testing
 

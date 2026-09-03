@@ -9,10 +9,25 @@ const bookingsRoutes = require('./interfaces/http/routes/bookingsRoutes');
 const adminRoutes = require('./interfaces/http/routes/adminRoutes');
 const notFoundHandler = require('./interfaces/http/middlewares/notFoundHandler');
 const errorHandler = require('./interfaces/http/middlewares/errorHandler');
+const config = require('./config/env');
 
 const app = express();
 
-app.use(cors());
+// Only CORS_ORIGIN (http://localhost:3002 by default) may call this API
+// from a browser. Requests with no Origin header at all -- curl, Postman,
+// server-to-server -- are unaffected either way, since CORS is purely a
+// browser mechanism and those were never subject to it in the first
+// place. Same-origin requests (the app's own pages calling their own
+// API) also never hit this check; the browser doesn't apply CORS to them.
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || origin === config.corsOrigin) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} is not allowed by CORS.`));
+    }
+  },
+}));
 app.use(express.json());
 
 // The 3-page test UI (login/index/admin.html) -- registered before the API

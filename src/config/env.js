@@ -29,4 +29,6 @@ module.exports = {
   },
 
   ninjaApiKey: process.env.NINJA_API_KEY,
+
+  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3002',
 };
