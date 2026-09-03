@@ -156,6 +156,49 @@ look like nothing happened even though it did. **The worker log from
 step 3 is the reliable record; the RabbitMQ UI is a supplementary view,
 not the proof.**
 
+### Proving CORS is actually working
+
+The pages above are served by the same Express app as the API, so
+they're same-origin — the browser never applies CORS to a same-origin
+request, meaning using them normally proves nothing about CORS
+specifically, even though everything works. To actually exercise it,
+serve the same pages from a genuinely different origin (a different
+port counts) and watch a cross-origin request succeed:
+
+```bash
+npm run demo:cors
+```
+
+This runs on your host machine (not in Docker) and serves `public/` on
+`http://localhost:8080`, while your API keeps running on `3001` as
+usual — two different origins. Open:
+
+```
+http://localhost:8080/login.html?apiBase=http://localhost:3001
+```
+
+Log in or register as normal. Every API call now targets
+`http://localhost:3001` instead of the page's own origin (`8080`) —
+that mismatch is exactly what makes this a real CORS scenario. You only
+need to type `?apiBase=...` once; it's remembered in `sessionStorage`
+and survives the redirect to `index.html` / `admin.html`.
+
+**To watch it happen**: open DevTools → Network tab before logging in.
+Requests to `localhost:3001` will succeed despite coming from a
+different origin; click into a response and look for the
+`Access-Control-Allow-Origin: *` header — that header *is* CORS, and
+its presence (plus the request not being blocked) is the proof.
+
+**Or skip the browser entirely:**
+```bash
+curl -i -X OPTIONS http://localhost:3001/cars \
+  -H "Origin: http://some-other-site.example" \
+  -H "Access-Control-Request-Method: GET"
+```
+A `204` with `Access-Control-Allow-Origin: *` in the response proves the
+server answers a preflight from *any* origin — including one that was
+never `localhost:8080` at all — with nothing else running.
+
 ## Testing
 
 - **Jest** runs unit tests against the domain/application layer (business
