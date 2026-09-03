@@ -13,7 +13,9 @@
     "test": "DB_NAME=carrental_test jest --runInBand",
     "test:local": "DB_NAME=carrental_test DB_HOST=localhost DB_PORT=5433 jest --runInBand",
     "test:coverage": "DB_NAME=carrental_test jest --runInBand --coverage",
-    "test:integration": "DB_NAME=carrental_test jest --runInBand tests/integration"
+    "test:coverage:local": "DB_NAME=carrental_test DB_HOST=localhost DB_PORT=5433 jest --runInBand --coverage",
+    "test:integration": "DB_NAME=carrental_test jest --runInBand tests/integration",
+    "test:integration:local": "DB_NAME=carrental_test DB_HOST=localhost DB_PORT=5433 jest --runInBand tests/integration"
   },
   "keywords": [],
   "author": "",

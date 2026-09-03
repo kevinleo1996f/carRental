@@ -267,15 +267,38 @@ which is just `npm test` with `DB_HOST`/`DB_PORT` pointed at `5433`
 instead of `.env`'s Docker-internal values — same test suite, same
 database, run from outside the container.
 
-**Other useful variants** (append ` DB_HOST=localhost DB_PORT=5433` in
-front if running on the host instead of via `docker compose run`):
+**Other useful variants** — each has a `:local` counterpart with the same
+`DB_HOST`/`DB_PORT` fix already baked in, so there's nothing to remember
+or type by hand:
 
 ```bash
-npm run test:integration   # only the Supertest suite under tests/integration/
-npm run test:coverage      # full suite with a coverage report
+npm run test:integration          # only the Supertest suite, via Docker
+npm run test:integration:local    # same, run directly on the host
+npm run test:coverage             # full suite + coverage report, via Docker
+npm run test:coverage:local       # same, run directly on the host
 ```
 
-`test:coverage` prints a percentage table straight to the terminal (statements/branches/functions/lines, overall and per file) and also writes a browsable report to `coverage/lcov-report/index.html` — open that file directly in a browser for a clickable, line-by-line view of exactly what is and isn't covered. `coverage/` is gitignored, generated fresh each run.
+`test:coverage` prints a percentage table straight to the terminal
+(statements/branches/functions/lines, overall and per file) and also
+writes a browsable report to `coverage/lcov-report/index.html` — open
+that file directly in a browser for a clickable, line-by-line view of
+exactly what is and isn't covered. `coverage/` is gitignored, generated
+fresh each run.
+
+`jest.config.js` excludes a few files from the percentage on purpose,
+not to inflate the number but because they're categorically not the
+kind of thing a unit/integration test suite is the right tool for:
+`src/domain/repositories/**` (abstract interfaces — every method just
+throws `Not implemented`; only the concrete `Postgres*Repository`
+subclasses, which override every method, are ever actually called), and
+`src/server.js` / `src/worker.js` / `src/scripts/**` (process
+entrypoints — verified throughout this project by actually running them
+in Docker, not by importing and unit-testing a `.listen()` call). With
+those excluded, current coverage is in the 90%+ range on statements,
+functions, and lines, and comfortably above 80% on branches — the
+remaining gaps are individually small and specific (a few environment
+variable default-value fallbacks, one hard-to-trigger database error
+passthrough), not broad holes.
 
 ## Project layout
 
