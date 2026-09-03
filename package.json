@@ -10,7 +10,10 @@
     "seed": "node src/scripts/seedCars.js",
     "demo:cors:allowed": "python3 -m http.server 3002 --directory public",
     "demo:cors:blocked": "python3 -m http.server 8080 --directory public",
-    "test": "DB_NAME=carrental_test jest --runInBand"
+    "test": "DB_NAME=carrental_test jest --runInBand",
+    "test:local": "DB_NAME=carrental_test DB_HOST=localhost DB_PORT=5433 jest --runInBand",
+    "test:coverage": "DB_NAME=carrental_test jest --runInBand --coverage",
+    "test:integration": "DB_NAME=carrental_test jest --runInBand tests/integration"
   },
   "keywords": [],
   "author": "",

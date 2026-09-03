@@ -251,9 +251,31 @@ runs. To run the suite, install them into a throwaway container run:
 docker compose run --rm api sh -c "npm install && npm test"
 ```
 
-If you have Node installed on your own machine, `npm install && npm test`
-directly on the host is faster for repeated runs while you're writing
-code — same test suite either way.
+**If you have Node installed on your own machine** and want to run
+`npm test` directly on the host instead (faster for repeated runs while
+writing code), the plain command will fail — `.env`'s `DB_HOST=localhost`
+/ `DB_PORT=5432` are tuned for *inside* Docker, where they correctly
+reach the `postgres` container's internal port. From the host, Postgres
+is actually reachable at `localhost:5433` (see the port note earlier in
+this README), so use this instead:
+
+```bash
+npm run test:local
+```
+
+which is just `npm test` with `DB_HOST`/`DB_PORT` pointed at `5433`
+instead of `.env`'s Docker-internal values — same test suite, same
+database, run from outside the container.
+
+**Other useful variants** (append ` DB_HOST=localhost DB_PORT=5433` in
+front if running on the host instead of via `docker compose run`):
+
+```bash
+npm run test:integration   # only the Supertest suite under tests/integration/
+npm run test:coverage      # full suite with a coverage report
+```
+
+`test:coverage` prints a percentage table straight to the terminal (statements/branches/functions/lines, overall and per file) and also writes a browsable report to `coverage/lcov-report/index.html` — open that file directly in a browser for a clickable, line-by-line view of exactly what is and isn't covered. `coverage/` is gitignored, generated fresh each run.
 
 ## Project layout
 
