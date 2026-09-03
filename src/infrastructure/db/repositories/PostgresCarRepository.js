@@ -68,6 +68,17 @@ class PostgresCarRepository extends CarRepository {
     return toEntity(result.rows[0]);
   }
 
+  async update(id, { brand, model, fuelType, transmission, year, drive }) {
+    const result = await pool.query(
+      `UPDATE cars
+       SET brand = $2, model = $3, fuel_type = $4, transmission = $5, year = $6, drive = $7
+       WHERE id = $1
+       RETURNING *`,
+      [id, brand, model, fuelType, transmission, year, drive]
+    );
+    return result.rows[0] ? toEntity(result.rows[0]) : null;
+  }
+
   async delete(id) {
     try {
       await pool.query('DELETE FROM cars WHERE id = $1', [id]);

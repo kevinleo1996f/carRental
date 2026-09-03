@@ -1,6 +1,7 @@
 const ListCars = require('../../../application/use-cases/ListCars');
 const GetCarById = require('../../../application/use-cases/GetCarById');
 const DeleteCar = require('../../../application/use-cases/DeleteCar');
+const ReplaceCar = require('../../../application/use-cases/ReplaceCar');
 const SearchCar = require('../../../application/use-cases/SearchCar');
 const PostgresCarRepository = require('../../../infrastructure/db/repositories/PostgresCarRepository');
 const ninjaApiClient = require('../../../infrastructure/external/ninjaApiClient');
@@ -11,6 +12,7 @@ const carRepository = new PostgresCarRepository();
 const listCars = new ListCars({ carRepository });
 const getCarById = new GetCarById({ carRepository });
 const deleteCar = new DeleteCar({ carRepository });
+const replaceCar = new ReplaceCar({ carRepository });
 const searchCar = new SearchCar({ ninjaApiClient, carRepository });
 
 function toResponse(car) {
@@ -66,6 +68,22 @@ async function getById(req, res, next) {
   }
 }
 
+async function replace(req, res, next) {
+  try {
+    const { brand, model, fuel_type: fuelType, transmission, year, drive } = req.body;
+    if (!brand || !model || !fuelType || !transmission || !year || !drive) {
+      throw new ValidationError('brand, model, fuel_type, transmission, year, and drive are all required for a full replace.');
+    }
+
+    const car = await replaceCar.execute(parseId(req.params.id), {
+      brand, model, fuelType, transmission, year: Number(year), drive,
+    });
+    res.status(200).json(toResponse(car));
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function remove(req, res, next) {
   try {
     await deleteCar.execute(parseId(req.params.id));
@@ -75,4 +93,4 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { list, search, getById, remove };
+module.exports = { list, search, getById, replace, remove };

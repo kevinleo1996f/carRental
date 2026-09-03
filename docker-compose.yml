@@ -11,6 +11,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./src/infrastructure/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./src/infrastructure/db/seed-data.sql:/docker-entrypoint-initdb.d/seed-data.sql
       - ./src/infrastructure/db/create-test-db.sh:/docker-entrypoint-initdb.d/create-test-db.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U carrental"]
@@ -34,10 +35,28 @@ services:
     build: .
     restart: unless-stopped
     command: node src/server.js
-    env_file: .env
+    # No env_file here on purpose -- Compose auto-loads a top-level .env
+    # (if one exists) purely to fill in the ${VAR:-default} placeholders
+    # below. Every variable the app needs has a safe local-only default,
+    # so `docker compose up` works with zero setup; an optional .env
+    # (see .env.example) overrides any of them, e.g. a real NINJA_API_KEY.
     environment:
+      PORT: 3000
       DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-carrental}
+      DB_USER: ${DB_USER:-carrental}
+      DB_PASSWORD: ${DB_PASSWORD:-carrental}
       RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-default-please-change}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@carrental.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      NINJA_API_KEY: ${NINJA_API_KEY:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3002}
     ports:
       - "3001:3000"
     depends_on:
@@ -50,10 +69,16 @@ services:
     build: .
     restart: unless-stopped
     command: node src/worker.js
-    env_file: .env
     environment:
       DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-carrental}
+      DB_USER: ${DB_USER:-carrental}
+      DB_PASSWORD: ${DB_PASSWORD:-carrental}
       RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
     depends_on:
       postgres:
         condition: service_healthy

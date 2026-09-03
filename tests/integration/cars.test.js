@@ -77,6 +77,54 @@ describe('Cars (integration, real Postgres)', () => {
     expect(res.status).toBe(400);
   });
 
+  describe('PUT /admin/cars/:id', () => {
+    it('fully replaces a car and returns it', async () => {
+      const carId = await insertCar('kia');
+      const adminToken = await loginAsAdmin();
+
+      const res = await request(app)
+        .put(`/admin/cars/${carId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          brand: 'kia', model: 'sportage', fuel_type: 'gas', transmission: 'manual', year: 2024, drive: 'awd',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        id: carId, brand: 'kia', model: 'sportage', fuel_type: 'gas', transmission: 'manual', year: 2024, drive: 'awd',
+      });
+    });
+
+    it('returns 404 replacing a car that does not exist', async () => {
+      const adminToken = await loginAsAdmin();
+      const res = await request(app)
+        .put('/admin/cars/999999')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ brand: 'kia', model: 'x', fuel_type: 'gas', transmission: 'manual', year: 2024, drive: 'awd' });
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 400 when a required field is missing', async () => {
+      const carId = await insertCar('kia');
+      const adminToken = await loginAsAdmin();
+      const res = await request(app)
+        .put(`/admin/cars/${carId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ brand: 'kia', model: 'sportage' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a non-admin token with 403', async () => {
+      const carId = await insertCar('kia');
+      const customerToken = await registerAndLogin('carsputnotadmin@example.com');
+      const res = await request(app)
+        .put(`/admin/cars/${carId}`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ brand: 'kia', model: 'x', fuel_type: 'gas', transmission: 'manual', year: 2024, drive: 'awd' });
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('DELETE /admin/cars/:id', () => {
     it('deletes a car with no bookings', async () => {
       const carId = await insertCar('kia');

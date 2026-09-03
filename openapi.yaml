@@ -24,6 +24,8 @@ servers:
       api service's host port to something other than 3001.
 
 tags:
+  - name: Platform
+    description: Operational endpoints -- not part of the business API.
   - name: Auth
     description: Registration and login. Admin logs in here too.
   - name: Cars
@@ -37,6 +39,40 @@ security:
   - bearerAuth: []
 
 paths:
+  /health:
+    get:
+      tags: [Platform]
+      summary: Report service and dependency status
+      description: Actually checks Postgres (`SELECT 1`) and RabbitMQ (opens/reuses the real connection) on every call -- not a static "yes I'm running" response.
+      security: []
+      responses:
+        '200':
+          description: Everything reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  dependencies:
+                    type: object
+                    properties:
+                      postgres: { type: string, example: ok }
+                      rabbitmq: { type: string, example: ok }
+        '503':
+          description: At least one dependency is unreachable -- the response names which one and why
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: degraded }
+                  dependencies:
+                    type: object
+                    properties:
+                      postgres: { type: string, example: "error: getaddrinfo ENOTFOUND postgres" }
+                      rabbitmq: { type: string, example: ok }
+
   /auth/register:
     post:
       tags: [Auth]
@@ -93,6 +129,30 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the identity encoded in the current JWT
+      description: Exists mainly to exercise the auth middleware directly -- echoes back whatever was encoded at login (customerId+role for a customer, just role for admin).
+      responses:
+        '200':
+          description: The decoded token payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customerId: { type: integer, example: 1 }
+                  role: { type: string, enum: [customer, admin] }
+                  iat: { type: integer, description: "Issued-at (unix seconds)" }
+                  exp: { type: integer, description: "Expiry (unix seconds)" }
+        '401':
+          description: Missing, malformed, or expired token
           content:
             application/json:
               schema:
@@ -366,6 +426,51 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   /admin/cars/{id}:
+    put:
+      tags: [Admin]
+      summary: Fully replace a car's details
+      description: Admin-only. Unlike PATCH-style partial updates, every field is required -- this replaces the whole record, not just part of it.
+      parameters:
+        - $ref: '#/components/parameters/CarId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [brand, model, fuel_type, transmission, year, drive]
+              properties:
+                brand: { type: string, example: kia }
+                model: { type: string, example: sportage }
+                fuel_type: { type: string, example: gas }
+                transmission: { type: string, example: manual }
+                year: { type: integer, example: 2024 }
+                drive: { type: string, example: awd }
+      responses:
+        '200':
+          description: Car replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Car'
+        '400':
+          description: A required field is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Caller is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Car not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     delete:
       tags: [Admin]
       summary: Permanently delete a car

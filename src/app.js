@@ -10,6 +10,7 @@ const adminRoutes = require('./interfaces/http/routes/adminRoutes');
 const notFoundHandler = require('./interfaces/http/middlewares/notFoundHandler');
 const errorHandler = require('./interfaces/http/middlewares/errorHandler');
 const config = require('./config/env');
+const healthController = require('./interfaces/http/controllers/healthController');
 
 const app = express();
 
@@ -35,9 +36,7 @@ app.use(express.json());
 // real file (e.g. /auth/login) falls through to the routes below unchanged.
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+app.get('/health', healthController.check);
 
 // Publicly viewable -- no authMiddleware. Swagger UI's own "Authorize"
 // button is where a real JWT gets pasted in, for testing protected routes

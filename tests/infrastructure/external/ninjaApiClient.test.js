@@ -44,7 +44,7 @@ describe('ninjaApiClient', () => {
       expect(global.fetch.mock.calls[0][0].toString()).toBe('https://api.api-ninjas.com/v1/cars?year=2021');
     });
 
-    it('throws a descriptive error when the response is not ok', async () => {
+    it('throws a descriptive error when the response is not ok, after retrying once', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: false,
         status: 401,
@@ -53,6 +53,27 @@ describe('ninjaApiClient', () => {
 
       await expect(fetchCars({ year: 2021, make: 'kia' }))
         .rejects.toThrow('Ninja API request failed (401): {"error":"Invalid API Key."}');
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('succeeds on the second attempt after the first one fails', async () => {
+      global.fetch = jest.fn()
+        .mockRejectedValueOnce(new Error('network blip'))
+        .mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValue([{ make: 'kia' }]) });
+
+      const result = await fetchCars({ year: 2021, make: 'kia' });
+
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(result).toEqual([{ make: 'kia' }]);
+    });
+
+    it('passes an AbortSignal so a hung request can be timed out', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, json: jest.fn().mockResolvedValue([]) });
+
+      await fetchCars({ year: 2021 });
+
+      const options = global.fetch.mock.calls[0][1];
+      expect(options.signal).toBeInstanceOf(AbortSignal);
     });
   });
 });

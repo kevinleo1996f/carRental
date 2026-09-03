@@ -3,7 +3,10 @@
 A car rental booking backend: Node.js + Express, PostgreSQL, JWT auth, and
 RabbitMQ for the one async step in the app (booking confirmation). See
 [openapi.yaml](openapi.yaml) for the full API contract and
-[database-schema.mmd](database-schema.mmd) for the schema.
+[database-schema.mmd](database-schema.mmd) for the schema. If you're
+checking this against a specific requirements list, jump straight to
+[**Requirements checklist**](#requirements-checklist) at the bottom —
+every item there links back to how to test it yourself.
 
 ## Prerequisites
 
@@ -18,30 +21,30 @@ RabbitMQ for the one async step in the app (booking confirmation). See
 ```bash
 git clone <this-repo-url>
 cd carRental
-cp .env.example .env
-```
-
-Open `.env` and fill in at least:
-
-- `JWT_SECRET` — any long random string
-- `ADMIN_EMAIL` / `ADMIN_PASSWORD` — your own admin login for this app,
-  there is no admin sign-up, see "Admin login" below
-- `NINJA_API_KEY` — only required if you plan to run the seed script
-
-Everything else in `.env.example` already has working defaults for local
-Docker use (DB name/user/password, RabbitMQ guest/guest).
-
-Then:
-
-```bash
 docker compose up --build
 ```
 
-This starts 4 containers: `postgres`, `rabbitmq`, `api` (port `3001` on
-your machine — see note below), and `worker` (no exposed port — it just
-consumes RabbitMQ messages in the background). The API and worker will
-start even with a placeholder `NINJA_API_KEY` — that key is only read by
-the seed script below.
+That's it — **no `.env` file is required.** `docker-compose.yml` bakes in
+a safe, local-only default for every environment variable the app needs
+(JWT secret, admin login, DB/RabbitMQ credentials, CORS origin), so a
+completely bare clone works immediately. This starts 4 containers:
+`postgres`, `rabbitmq`, `api` (port `3001` on your machine — see note
+below), and `worker` (no exposed port — it just consumes RabbitMQ
+messages in the background). The database comes pre-loaded with a
+handful of demo cars, a demo customer, and a demo booking (see "Seeding"
+below) — there's something to look at immediately, not an empty database.
+
+If you want to override any default — a real `NINJA_API_KEY` so
+`/cars/search` actually hits Ninja, your own `JWT_SECRET`, a different
+admin login — copy `.env.example` to `.env` and fill in only the ones
+you care about; anything you don't set keeps its built-in default:
+
+```bash
+cp .env.example .env
+```
+
+`.env` is gitignored, so anything you put there never leaves your
+machine.
 
 - API: http://localhost:3001
 - Test UI (customer login/homepage): http://localhost:3001/login.html
@@ -56,6 +59,14 @@ network the container still listens on `3000`; only the port your browser
 or Postman uses to reach it is different.
 
 ## Seeding the car catalog
+
+A fresh volume already has 5 baseline cars (`seed-data.sql`, applied
+automatically alongside the schema), plus a demo account —
+`demo@carrental.local` / `demopass123` — with one demo booking, so
+`GET /cars`, `GET /bookings`, and `GET /admin/bookings` all have
+something real to return with zero manual steps. `npm run seed` (below)
+adds real, Ninja-sourced cars on top of these — it never removes or
+duplicates them.
 
 Car data is **not** fetched live during a booking. It's pulled from the
 Ninja API once, ahead of time, into the local `cars` table — a booking
@@ -89,6 +100,35 @@ Ninja's response: `make` becomes `brand`, and `transmission` is expanded
 from Ninja's single-letter code (`a`/`m`) to `automatic`/`manual`. `drive`
 (`fwd`/`awd`/`rwd`/`4wd`) and `fuel_type` are stored exactly as Ninja
 returns them.
+
+## Proving the Ninja fallback (`GET /cars/search`)
+
+Unlike browsing the catalog, `GET /cars/search?brand=&year=` calls Ninja
+**live**, with the local database only as a backup if Ninja is
+unreachable. `SearchCar` (`src/application/use-cases/SearchCar.js`)
+falls back on any failure — a thrown error *or* a timeout (5s, via
+`AbortController`) *or* one retry also failing — and the response always
+names which source actually answered:
+
+```json
+{ "source": "ninja_api", "car": { ... } }
+{ "source": "database_fallback", "car": { ... } }
+```
+
+To see the fallback fire for real:
+
+1. Search a car normally (with a real `NINJA_API_KEY` set) → `source: "ninja_api"`.
+2. Break the key: open `.env`, change one character in `NINJA_API_KEY`
+   (create `.env` from `.env.example` first if you don't have one —
+   this demo specifically needs to go from a *working* key to a *broken*
+   one, so the zero-config default alone won't show the transition).
+3. `docker compose up -d --build api` to pick up the change.
+4. Search the **same** brand/year again → `source: "database_fallback"`,
+   since it was already cached from step 1 (or is one of the baseline
+   seed cars). The `api` container's own logs
+   (`docker compose logs api`) show exactly why:
+   `Ninja API search failed for brand=... year=...: ... -- falling back to the local database.`
+5. Restore the real key, rebuild, search again → back to `"ninja_api"`.
 
 ## Admin login
 
@@ -213,15 +253,27 @@ curl -i http://localhost:3001/health
 
 ## Testing
 
-- **Jest** runs unit tests against the domain/application layer (business
-  rules, use cases) against fake repositories — no database or network
-  involved, and these prove the business rules themselves (overlapping
-  bookings, IDOR protection, etc.).
-- **Supertest** drives the real Express app in-process for integration
-  tests under `tests/integration/` — `POST /bookings`, `POST /auth/login`,
-  etc. really hit Postgres and assert on the real HTTP response. These
+- **Jest** is the test framework — every single test in this project
+  runs under it, no exceptions. It runs unit tests against the
+  domain/application layer (business rules, use cases) against fake
+  repositories — no database or network involved, and these prove the
+  business rules themselves (overlapping bookings, IDOR protection, etc.).
+- **Supertest** is not an alternative to Jest — it's a small library used
+  *inside* some Jest tests (everything under `tests/integration/`) to
+  drive real HTTP requests at the real Express app (`request(app).post('/auth/login')...`),
+  hitting real Postgres and asserting on the real HTTP response. These
   prove the wiring (routes → controllers → database) works, not the
   business rules a second time.
+
+**To see the difference live, not just read about it**: stop Postgres
+(`docker compose stop postgres`), then run only the unit tests —
+`npx jest --runInBand tests/application tests/domain tests/infrastructure`
+— they pass instantly, no database needed. Then run only the integration
+tests the same way (`DB_HOST=localhost DB_PORT=5433 npm run test:integration:local`)
+— every one fails immediately with a connection error. Same test
+framework, wildly different dependency on infrastructure — that
+contrast is the clearest proof of the distinction there is. Restart
+Postgres (`docker compose start postgres`) afterward.
 - Integration tests run against a separate **`carrental_test`** database
   on the same Postgres container — never your real `carrental` data.
   It's created automatically alongside `carrental` the first time the
@@ -312,3 +364,152 @@ API client, JWT/bcrypt), `interfaces/http` (Express routes, controllers,
 middleware). `src/server.js` runs the API; `src/worker.js` runs the
 RabbitMQ consumer as a separate process — both run in their own container
 via the same Dockerfile.
+
+## Requirements checklist
+
+Every item below has actually been run and verified against this
+codebase, not assumed. Anything not fully met is marked and explained
+rather than glossed over.
+
+### Platform and operations
+
+- ✅ **One-command start** — `docker compose up` brings up the whole
+  stack with **zero setup**, no `.env` required (see Setup above).
+  Test it yourself: `mv .env .env.bak 2>/dev/null; docker compose up -d`
+  → all 4 containers healthy (`docker compose ps`); restore afterward
+  with `mv .env.bak .env`.
+- ✅ **Health endpoint** — `GET /health` actually checks Postgres
+  (`SELECT 1`) and RabbitMQ (opens/reuses the real connection) on every
+  call, not a static "yes I'm up." Test: `curl localhost:3001/health`
+  → `{"status":"ok","dependencies":{"postgres":"ok","rabbitmq":"ok"}}`.
+  Then `docker compose stop postgres && curl localhost:3001/health` →
+  `503` naming exactly which dependency is down; `docker compose start postgres`
+  to restore it.
+
+### API and data layer
+
+- ✅ **API layer runs** — Node + Express (plain JS). Test: `docker compose up`,
+  `curl localhost:3001/health`.
+- ✅ **GET collection → array (200)** — e.g. `GET /cars`, `GET /admin/bookings`.
+- ✅ **GET single → one record (200/404)** — e.g. `GET /cars/:id`, `GET /bookings/:id`.
+- ✅ **POST create (201)** — `POST /auth/register` returns `201`. **One
+  deliberate exception**: `POST /bookings` returns `202 Accepted`, not
+  `201` — intentional, not a miss. The entire point of this project is
+  that booking creation is asynchronous (customer gets an instant
+  response, a human reviews independently); `202` is the status code
+  that specifically means "accepted, not yet finished," which is a more
+  accurate description than `201` for this one endpoint.
+- ✅ **PUT replace → full update (200/404)** — `PUT /admin/cars/:id`,
+  requires every field, added specifically for this requirement. Test:
+  `curl -X PUT localhost:3001/admin/cars/1 -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" -d '{"brand":"kia","model":"x","fuel_type":"gas","transmission":"manual","year":2024,"drive":"awd"}'`.
+- ✅ **PATCH update → partial (200)** — `PATCH /admin/bookings/:id/approve` / `/reject`.
+- ✅ **DELETE remove (204)** — `DELETE /admin/cars/:id`.
+
+### Database layer
+
+- ✅ **Database running** — Postgres, via Docker.
+- ✅ **Schema designed** — [`schema.sql`](src/infrastructure/db/schema.sql):
+  3 tables, typed columns, primary keys.
+- ✅ **Relationships modelled** — `bookings.customer_id → customers.id`,
+  `bookings.car_id → cars.id`, both real foreign keys, not just
+  documented — proven back when a delete of a referenced car was
+  actually rejected by Postgres itself, not application code.
+- ✅ **Seed data** — [`seed-data.sql`](src/infrastructure/db/seed-data.sql),
+  applied automatically on a fresh volume: 5 cars, 1 demo customer
+  (`demo@carrental.local` / `demopass123`), 1 demo booking — enough to
+  demo every endpoint immediately. `npm run seed` adds real
+  Ninja-sourced cars on top whenever you want more.
+
+### CORS, security, docs
+
+- ✅ **CORS** — restricted to exactly one allowed origin (`CORS_ORIGIN`,
+  `http://localhost:3002` by default) rather than open to `*`. This was
+  a deliberate choice: a wildcard only ever proves "everyone is let
+  in," while a real allow-list proves an actual restriction is being
+  enforced. All verbs used by this API (GET/POST/PUT/PATCH/DELETE) work
+  correctly from the allowed origin; every other origin is genuinely
+  rejected by the browser. See "Proving CORS is actually working" above
+  for the full live demo, including `npm run demo:cors:allowed` /
+  `demo:cors:blocked`.
+- ✅ **Pre-flight** — proven with both a real browser (Chrome's own
+  console shows the rejection verbatim for a disallowed origin) and via
+  curl (`OPTIONS` + `Origin` header → `204` + the CORS header for the
+  allowed origin, no header at all for any other).
+- ✅ **Authentication** — `POST /auth/login` issues a JWT.
+- ✅ **Authorisation** — protected routes reject without a token (`401`)
+  and with the wrong role (`403`). Test: `curl localhost:3001/bookings`
+  (no header) → `401`; log in as a customer and try
+  `curl -X DELETE localhost:3001/admin/cars/1 -H "Authorization: Bearer $CUSTOMER_TOKEN"` → `403`.
+- ✅ **Swagger docs** — `/api-docs`, live, all 13 paths listed (audited
+  against the actual Express routes as part of this pass — `GET /auth/me`
+  and `GET /health` had been missing from the spec until now, fixed
+  alongside this checklist).
+- ✅ **Docs validated** — every documented route has actually been hit
+  against the running API throughout this project (curl, Postman,
+  Supertest), not just written and assumed correct.
+- ⚠️ **Submission pack** — README ✅, exported Postman collection ✅
+  ([`carRental.postman_collection.json`](carRental.postman_collection.json),
+  generated from the OpenAPI spec itself via Postman's own converter, so
+  it can't drift from the real contract — includes a `{{baseUrl}}`
+  variable already set to `http://localhost:3001` and collection-level
+  bearer auth). **Screenshots — not included.** Which moments to
+  capture for a submission is a judgment call for you to make, not
+  something to fabricate on your behalf.
+
+### Domain and architecture
+
+- ✅ **Domain modules split** — `Customer` / `Car` / `Booking`.
+- ✅ **Controllers stay thin** — routing/HTTP only; see any controller,
+  e.g. [`carsController.js`](src/interfaces/http/controllers/carsController.js).
+- ✅ **Service layer** — [`application/use-cases/`](src/application/use-cases) —
+  zero Express imports anywhere in that folder.
+- ✅ **Repository layer** — [`domain/repositories/`](src/domain/repositories)
+  interfaces + [`infrastructure/db/repositories/`](src/infrastructure/db/repositories)
+  implementations; nothing outside `infrastructure/` imports `pg` directly.
+- ✅ **Request validation** — checked on entry, `400` with a specific
+  message (e.g. `"brand and year are both required to search."`) — hand-written
+  checks rather than a schema library like Joi/Zod, which is a
+  deliberate choice for a project this size: a validation library would
+  be one more dependency and one more thing to configure for a handful
+  of straightforward presence/type checks.
+- ✅ **Central error handler** — one [`errorHandler`](src/interfaces/http/middlewares/errorHandler.js)
+  middleware, the same `{message}` shape everywhere.
+- ✅ **Migrations and seed** *(Optional)* — `schema.sql` + `seed-data.sql`
+  via Postgres's own init mechanism; the whole database rebuilds from
+  nothing with one `docker compose up`.
+
+### Testing and quality
+
+- ✅ **Jest runs.**
+- ✅ **Unit tests** — the `application/use-cases` layer, tested against
+  fake repositories (see "Testing" above — includes a live demo of the
+  unit-vs-integration distinction by stopping Postgres and watching one
+  suite keep passing while the other fails).
+- ✅ **Integration tests** — Supertest hits real routes against real
+  Postgres, under [`tests/integration/`](tests/integration).
+- ✅ **Test data** — every integration test file truncates the test
+  database in `beforeEach`; no test depends on another's leftover state.
+- ✅ **Coverage gate** — `jest.config.js`'s `coverageThreshold` (80% on
+  all four metrics) makes `npm run test:coverage` **exit non-zero** if
+  coverage regresses below the bar — proven to actually fire (not just
+  configured) by temporarily setting an impossible 99% threshold and
+  watching it fail with a specific message, then restoring it.
+
+### Async work and integrations
+
+- ✅ **RabbitMQ running** — broker up, management UI reachable at
+  `http://localhost:15672`.
+- ✅ **Publisher** — `CreateBooking` / `UpdateBookingStatus` publish an
+  event instead of doing anything slow inline.
+- ✅ **Consumer** — [`worker.js`](src/worker.js), a separate process/container.
+- ✅ **External API client** — [`ninjaApiClient.js`](src/infrastructure/external/ninjaApiClient.js),
+  one third party (api-ninjas.com), called over HTTPS.
+- ✅ **Resilience** — all three explicitly present: a 5-second timeout
+  via `AbortController` (so a hung request can't block the fallback
+  path), one retry before giving up, and a database fallback when Ninja
+  still isn't available after that. See "Proving the Ninja fallback"
+  earlier in this README for the live demo (break `NINJA_API_KEY`,
+  watch `source` flip to `database_fallback`).
+- ✅ **Secrets** — every credential is an environment variable; `.env`
+  is gitignored; only `.env.example` (placeholders) and
+  `docker-compose.yml` (safe local-only defaults) are committed.

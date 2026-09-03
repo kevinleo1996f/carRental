@@ -6,6 +6,7 @@ const requireAdmin = require('../middlewares/requireAdmin');
 
 const router = express.Router();
 
+router.put('/cars/:id', authMiddleware, requireAdmin, carsController.replace);
 router.delete('/cars/:id', authMiddleware, requireAdmin, carsController.remove);
 router.get('/bookings', authMiddleware, requireAdmin, bookingsController.listAll);
 router.patch('/bookings/:id/approve', authMiddleware, requireAdmin, bookingsController.approve);
