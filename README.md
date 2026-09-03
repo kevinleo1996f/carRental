@@ -243,40 +243,44 @@ curl -i http://localhost:3001/health
   `CreateBooking`/`UpdateBookingStatus`), so the same resilience that
   protects production also means the test suite doesn't depend on it.
 
-The `api`/`worker` images deliberately don't include Jest or Supertest —
-they're dev-only tools, kept out of the image `docker compose up` actually
-runs. To run the suite, install them into a throwaway container run:
+There is only ever **one** Postgres, and it always runs in a Docker
+container — the choice below is about where your *Jest process itself*
+runs, not about which database it talks to. That's why every script
+below comes in two forms.
+
+**Recommended: run directly on your machine (needs Node installed).**
+Everything runs one command at a time, no throwaway container per run:
+
+```bash
+docker compose up -d              # Postgres (and friends) must already be running
+npm install
+npm run test:local                # full suite
+npm run test:integration:local    # only the Supertest suite under tests/integration/
+npm run test:coverage:local       # full suite + coverage report
+```
+
+These use `DB_HOST=localhost` / `DB_PORT=5433` instead of `.env`'s
+defaults. Jest running directly on your machine sits *outside* Docker's
+internal network, so it reaches the same Postgres container the way any
+other host tool does (`5433`, same as pgAdmin needed earlier) — `.env`'s
+own `DB_HOST=localhost` / `DB_PORT=5432` are written for the *other*
+case below, where they're correct instead.
+
+**Alternative: fully inside Docker** (what a teammate with only Docker
+installed, no Node, would use — also how CI would run this):
 
 ```bash
 docker compose run --rm api sh -c "npm install && npm test"
+docker compose run --rm api sh -c "npm install && npm run test:integration"
+docker compose run --rm api sh -c "npm install && npm run test:coverage"
 ```
 
-**If you have Node installed on your own machine** and want to run
-`npm test` directly on the host instead (faster for repeated runs while
-writing code), the plain command will fail — `.env`'s `DB_HOST=localhost`
-/ `DB_PORT=5432` are tuned for *inside* Docker, where they correctly
-reach the `postgres` container's internal port. From the host, Postgres
-is actually reachable at `localhost:5433` (see the port note earlier in
-this README), so use this instead:
-
-```bash
-npm run test:local
-```
-
-which is just `npm test` with `DB_HOST`/`DB_PORT` pointed at `5433`
-instead of `.env`'s Docker-internal values — same test suite, same
-database, run from outside the container.
-
-**Other useful variants** — each has a `:local` counterpart with the same
-`DB_HOST`/`DB_PORT` fix already baked in, so there's nothing to remember
-or type by hand:
-
-```bash
-npm run test:integration          # only the Supertest suite, via Docker
-npm run test:integration:local    # same, run directly on the host
-npm run test:coverage             # full suite + coverage report, via Docker
-npm run test:coverage:local       # same, run directly on the host
-```
+Here the test process runs *inside* a container on the same Docker
+network as `postgres`, so it can reach it by container name instead of
+by host port — `docker-compose.yml` overrides `DB_HOST` to `postgres`
+for exactly this case, and `.env`'s own `DB_PORT=5432` is already
+correct too (that's the container-internal port). No `:local` suffix
+needed here.
 
 `test:coverage` prints a percentage table straight to the terminal
 (statements/branches/functions/lines, overall and per file) and also
